@@ -1,0 +1,118 @@
+* VSCL
+
+The VSCL (Very Small Control Language) is a little project to write simple
+PLC-like code for microcontrollers.
+
+** Example Syntax
+
+- Railroad Crossing gates
+#+BEGIN_SRC
+bool left1_sensor in=(PA1 pullup active_low)
+bool right1_sensor in=(PA2 pullup active_low)
+
+bool lr1_active
+bool rl1_active
+bool active
+
+# comment
+servo gates out=PA3 resetval=10% setval=90%
+
+cyclic flashera period=750ms dutycycle=50% out=PA4
+
+set   lr1_active : rising(left1_sensor) & ~rl1_active
+reset lr1_active : falling(right1_sensor)
+
+set   rl1_active : rising(right1 & ~rl1_active
+reset rl1_active : falling(left1_sensor)
+
+latch active : lr1_active
+           | rl1_active
+           | lr2_active
+           | rl2_active
+
+latch flashera : active
+latch flasherb : ~flashera & active
+
+reset gates : falling(active)
+set gates : rising(active)
+#+END_SRC
+
+** Target Virtual Machine Description
+
+  - Stack machine
+    - Data Type is kept along each stack entry
+    - Stack is cleared at the start of each cycle
+  - 256 io registers
+    - Types
+      - Boolean/Discrete
+        - rising and falling states are "ports" on the register
+      - 16-bit value
+        - fixed-point (Q and UQ)
+          - Normal integers would be Q0 and UQ0
+        - wrapping or saturating
+      - Timer
+        - PWM / Astable
+        - Monostable
+              - TON, TOF, RTO
+        - Counter
+              - CTU, CTD
+        - Servo
+      - Filters on other registers
+        - Rising / Falling / Change
+        - PID
+        - Running Average
+        - Later
+          - DSP Filters
+          - Convolutions
+    - May be tied to pins
+      - Non-Boolean inputs come from an ADC
+      - Non-Boolean outputs are represented as PWM
+      - Pins have a debounce that require the given number of cycles
+        in a state before transitioning to that state
+    - Pin definitions
+      - Input (Pulled-up or Open-Collector or Analog)
+      - Output (Push-Pull or Open-Collector)
+
+** OpCodes
+
+#+BEGIN_SRC
+Mnemonic      Bytes    Stack         Notes
+-----------------------------------------------
+PUSH imm type     4      -- x
+PUSH reg          2      -- x
+PUSH reg.port     3      -- x
+POP  reg          2     x --
+POP  reg.port     3     x --
+SET  reg          2     b --         Sets if TOS is true
+RESET reg         2     b --         Resets if TOS is true
+
+DUP               1
+SWAP              1
+ROLL              1
+
+AND               1     b b -- b
+OR                1     b b -- b
+XOR               1     b b -- b
+NOT               1     b -- b
+
+ADD               1     n n -- n
+SUB               1     n n -- n
+MUL               1     n n -- n
+DIV               1     n n -- n
+MOD               1     n n -- n
+NEG               1     n -- n
+ABS               1     n -- n
+
+EQ                1     n n -- b
+LT                1     n n -- b
+LE                1     n n -- b
+GT                1     n n -- b
+GE                1     n n -- b
+Z                 1     n -- b
+NZ                1     n -- b
+GZ                1     n -- b
+LZ                1     n -- b
+BETWEEN           1     n n -- b     -TOS <= NOS <= TOS
+
+NOP               1     --
+#+END_SRC
