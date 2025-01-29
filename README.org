@@ -3,12 +3,12 @@
 The VSCL (Very Small Control Language) is a little project to write simple
 PLC-like code for microcontrollers.
 
-** Example Syntax
+** Syntax
 
-- Railroad Crossing gates
+*** Example: Railroad Crossing gates
 #+BEGIN_SRC
-bool left1_sensor in=(PA1 pullup active_low)
-bool right1_sensor in=(PA2 pullup active_low)
+bool left1_sensor src=pin(PA1 pullup active_low)
+bool right1_sensor src=pin(PA2 pullup active_low)
 
 bool lr1_active
 bool rl1_active
@@ -17,12 +17,13 @@ bool active
 # comment
 servo gates out=PA3 resetval=10% setval=90%
 
-cyclic flashera period=750ms dutycycle=50% out=PA4
+cyclic flashera period=750ms dutycycle=50% out=pin(PA4)
+bool flasherb out=pin(PA5)
 
 set   lr1_active : rising(left1_sensor) & ~rl1_active
 reset lr1_active : falling(right1_sensor)
 
-set   rl1_active : rising(right1 & ~rl1_active
+set   rl1_active : rising(right1_sensor) & ~rl1_active
 reset rl1_active : falling(left1_sensor)
 
 latch active : lr1_active
@@ -30,7 +31,7 @@ latch active : lr1_active
            | lr2_active
            | rl2_active
 
-latch flashera : active
+latch flashera.enable : active
 latch flasherb : ~flashera & active
 
 reset gates : falling(active)
@@ -115,4 +116,61 @@ LZ                1     n -- b
 BETWEEN           1     n n -- b     -TOS <= NOS <= TOS
 
 NOP               1     --
+#+END_SRC
+*** Example: Railroad Crossing Gates
+
+(This is missing the setup of the registers.)
+#+BEGIN_SRC
+; set   lr1_active : rising(left1_sensor) & ~rl1_active
+PUSH left1_sensor.rising
+PUSH rl1_active
+NOT
+AND
+SET lr1_active
+
+; reset lr1_active : falling(right1_sensor)
+PUSH right1_sensor.falling
+RESET
+
+; set   rl1_active : rising(right1_sensor) & ~rl1_active
+PUSH  right1.rising
+PUSH rl1_active
+NOT
+SET rl1_active
+
+; reset rl1_active : falling(left1_sensor)
+PUSH left1_sensor.falling
+RESET
+
+; latch active : lr1_active
+;              | rl1_active
+;              | lr2_active
+;              | rl2_active
+PUSH lr1_active
+PUSH rl1_active
+PUSH lr2_active
+PUSH rl2_active
+OR
+OR
+OR
+POP active
+
+; latch flashera.enable : active
+PUSH active
+POP flashera.enable
+
+; latch flasherb : ~flashera & active
+PUSH active
+PUSH flashera
+NOT
+AND
+POP flasherb
+
+; reset gates : falling(active)
+PUSH active.falling
+RESET gates
+
+; set gates : rising(active)
+PUSH active.rising
+SET gates
 #+END_SRC
